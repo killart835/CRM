@@ -1,0 +1,528 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+    <meta charset="UTF-8">
+    <title>SmartCRM - Groq AI</title>
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/@tabler/icons-webfont@latest/tabler-icons.min.css">
+    <style>
+    *{box-sizing:border-box;margin:0;padding:0}
+    :root {
+        --color-background-primary: #ffffff;
+        --color-background-secondary: #f8f9fa;
+        --color-border-secondary: #dee2e6;
+        --color-border-tertiary: #e9ecef;
+        --color-text-primary: #212529;
+        --color-text-secondary: #495057;
+        --color-text-tertiary: #6c757d;
+        --border-radius-lg: 12px;
+        --border-radius-md: 8px;
+        --font-sans: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+    }
+    body { font-family: var(--font-sans); background: #f0f2f5; padding: 20px; }
+    .crm{display:flex;height:700px;background:var(--color-background-secondary);border-radius:var(--border-radius-lg);border:0.5px solid var(--color-border-tertiary);overflow:hidden;box-shadow: 0 4px 12px rgba(0,0,0,0.05);}
+    .sidebar{width:200px;background:var(--color-background-primary);border-right:0.5px solid var(--color-border-tertiary);display:flex;flex-direction:column}
+    .logo{padding:18px 16px 14px;border-bottom:0.5px solid var(--color-border-tertiary)}
+    .logo-mark{display:flex;align-items:center;gap:8px}
+    .logo-dot{width:8px;height:8px;border-radius:50%;background:#1A73E8}
+    .logo-name{font-size:14px;font-weight:500;color:var(--color-text-primary)}
+    .logo-tag{font-size:10px;color:var(--color-text-tertiary);margin-top:3px;padding-left:16px}
+    .nav{flex:1;padding:8px 0}
+    .nav-group{padding:16px 0 4px 12px;font-size:10px;color:var(--color-text-tertiary);letter-spacing:.06em}
+    .nav-link{display:flex;align-items:center;gap:9px;padding:8px 12px;font-size:13px;color:var(--color-text-secondary);cursor:pointer;border-radius:6px;margin:1px 6px;transition:all .12s}
+    .nav-link:hover{background:var(--color-background-secondary);color:var(--color-text-primary)}
+    .nav-link.on{background:#E8F0FE;color:#1A73E8;font-weight:500}
+    .nav-link i{font-size:15px}
+    .nav-link .cnt{margin-left:auto;font-size:10px;background:var(--color-background-secondary);padding:1px 6px;border-radius:8px;color:var(--color-text-tertiary)}
+    .nav-link.on .cnt{background:#C5D8FD;color:#1A73E8}
+    .user-row{padding:12px;border-top:0.5px solid var(--color-border-tertiary);display:flex;align-items:center;gap:8px}
+    .user-av{width:28px;height:28px;border-radius:50%;background:#E8F0FE;display:flex;align-items:center;justify-content:center;font-size:11px;font-weight:500;color:#1A73E8;flex-shrink:0}
+    .user-name{font-size:12px;font-weight:500;color:var(--color-text-primary)}
+    .user-role{font-size:10px;color:var(--color-text-tertiary)}
+    .page{flex:1;display:flex;overflow:hidden}
+    .hidden{display:none!important}
+    .list-col{width:260px;background:var(--color-background-primary);border-right:0.5px solid var(--color-border-tertiary);display:flex;flex-direction:column}
+    .col-head{padding:14px 14px 10px;border-bottom:0.5px solid var(--color-border-tertiary);display:flex;align-items:center;justify-content:space-between}
+    .col-title{font-size:13px;font-weight:500;color:var(--color-text-primary)}
+    .btn-primary{background:#1A73E8;color:white;border:none;border-radius:6px;padding:5px 10px;font-size:12px;cursor:pointer;display:flex;align-items:center;gap:5px}
+    .btn-primary:hover{background:#1557B0}
+    .srch{padding:8px 12px;border-bottom:0.5px solid var(--color-border-tertiary)}
+    .srch input{width:100%;padding:6px 10px 6px 30px;border:0.5px solid var(--color-border-secondary);border-radius:6px;font-size:12px;background:var(--color-background-secondary);color:var(--color-text-primary)}
+    .srch-wrap{position:relative}
+    .srch-wrap i{position:absolute;left:8px;top:50%;transform:translateY(-50%);font-size:14px;color:var(--color-text-tertiary)}
+    .clist{flex:1;overflow-y:auto}
+    .ci{padding:11px 12px;border-bottom:0.5px solid var(--color-border-tertiary);cursor:pointer;display:flex;align-items:center;gap:9px;transition:background .1s}
+    .ci:hover{background:var(--color-background-secondary)}
+    .ci.on{background:#E8F0FE}
+    .av{width:34px;height:34px;border-radius:50%;display:flex;align-items:center;justify-content:center;font-size:12px;font-weight:500;flex-shrink:0}
+    .ci-body{flex:1;min-width:0}
+    .ci-name{font-size:13px;font-weight:500;color:var(--color-text-primary);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+    .ci-preview{font-size:11px;color:var(--color-text-tertiary);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;margin-top:1px}
+    .ci-meta{display:flex;flex-direction:column;align-items:flex-end;gap:3px}
+    .pill{font-size:10px;padding:2px 7px;border-radius:8px;font-weight:500;white-space:nowrap}
+    .pill-hot{background:#FAECE7;color:#712B13}
+    .pill-new{background:#E8F0FE;color:#1A73E8}
+    .pill-done{background:#EAF3DE;color:#27500A}
+    .pill-cold{background:#F1EFE8;color:#5F5E5A}
+    .detail{flex:1;display:flex;flex-direction:column;overflow:hidden}
+    .det-empty{flex:1;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:10px;color:var(--color-text-tertiary)}
+    .det-empty i{font-size:36px}
+    .det-empty span{font-size:13px}
+    .det-head{padding:12px 16px;background:var(--color-background-primary);border-bottom:0.5px solid var(--color-border-tertiary);display:flex;align-items:center;gap:12px}
+    .det-info{flex:1}
+    .det-name{font-size:15px;font-weight:500;color:var(--color-text-primary)}
+    .det-sub{font-size:12px;color:var(--color-text-secondary);margin-top:2px}
+    .head-btns{display:flex;gap:6px}
+    .btn-ghost{border:0.5px solid var(--color-border-secondary);background:transparent;border-radius:6px;padding:5px 10px;font-size:12px;cursor:pointer;color:var(--color-text-primary);display:flex;align-items:center;gap:5px}
+    .btn-ghost:hover{background:var(--color-background-secondary)}
+    .btn-success{background:#639922;color:white;border:none;border-radius:6px;padding:5px 10px;font-size:12px;cursor:pointer;display:flex;align-items:center;gap:5px}
+    .btn-success:hover{background:#3B6D11}
+    .tabs-bar{display:flex;background:var(--color-background-primary);border-bottom:0.5px solid var(--color-border-tertiary)}
+    .tab{padding:10px 16px;font-size:12px;cursor:pointer;color:var(--color-text-secondary);border-bottom:2px solid transparent;transition:all .12s}
+    .tab:hover{color:var(--color-text-primary)}
+    .tab.on{color:#1A73E8;border-bottom-color:#1A73E8;font-weight:500}
+    .tcontent{flex:1;display:flex;flex-direction:column;overflow:hidden}
+    .chat-msgs{flex:1;overflow-y:auto;padding:14px 16px;display:flex;flex-direction:column;gap:10px;background:var(--color-background-secondary)}
+    .msg-row{display:flex;gap:8px;max-width:88%}
+    .msg-row.me{align-self:flex-end;flex-direction:row-reverse}
+    .msg-row.them{align-self:flex-start}
+    .msg-av{width:26px;height:26px;border-radius:50%;display:flex;align-items:center;justify-content:center;font-size:10px;font-weight:500;flex-shrink:0;margin-top:2px}
+    .bubble{padding:8px 12px;border-radius:10px;font-size:13px;line-height:1.5;max-width:100%}
+    .them .bubble{background:var(--color-background-primary);color:var(--color-text-primary);border:0.5px solid var(--color-border-tertiary);border-top-left-radius:3px}
+    .me .bubble{color:white;border-top-right-radius:3px}
+    .me.ai-msg .bubble{background:#1A73E8}
+    .me.mgr-msg .bubble{background:#185FA5}
+    .msg-time{font-size:10px;color:var(--color-text-tertiary);margin-top:3px}
+    .me .msg-time{text-align:right}
+    .chat-bar{padding:10px 14px;background:var(--color-background-primary);border-top:0.5px solid var(--color-border-tertiary);display:flex;gap:8px;align-items:flex-end}
+    .chat-bar textarea{flex:1;border:0.5px solid var(--color-border-secondary);border-radius:8px;padding:8px 11px;font-size:13px;resize:none;height:36px;max-height:90px;background:var(--color-background-secondary);color:var(--color-text-primary);font-family:var(--font-sans)}
+    .btn-ai{width:36px;height:36px;border:none;border-radius:8px;background:#1A73E8;color:white;cursor:pointer;display:flex;align-items:center;justify-content:center;flex-shrink:0;position:relative}
+    .btn-ai:hover{background:#1557B0}
+    .btn-ai .badge-ai{position:absolute;top:-5px;right:-5px;background:#EA4335;color:white;font-size:9px;padding:1px 4px;border-radius:5px;font-weight:500}
+    .btn-send{width:36px;height:36px;border:none;border-radius:8px;background:#34A853;color:white;cursor:pointer;display:flex;align-items:center;justify-content:center;flex-shrink:0}
+    .btn-send:hover{background:#1E7E34}
+    .spin{width:14px;height:14px;border:2px solid rgba(255,255,255,.3);border-top-color:white;border-radius:50%;animation:sp .6s linear infinite}
+    @keyframes sp{to{transform:rotate(360deg)}}
+    .info-scroll{flex:1;overflow-y:auto;padding:14px 16px;display:flex;flex-direction:column;gap:10px}
+    .card{background:var(--color-background-primary);border:0.5px solid var(--color-border-tertiary);border-radius:var(--border-radius-lg);padding:14px}
+    .card-title{font-size:11px;font-weight:500;color:var(--color-text-tertiary);letter-spacing:.05em;margin-bottom:10px}
+    .field-row{display:flex;justify-content:space-between;align-items:center;padding:5px 0;border-bottom:0.5px solid var(--color-border-tertiary)}
+    .field-row:last-child{border-bottom:none}
+    .fl{font-size:12px;color:var(--color-text-secondary)}
+    .fv{font-size:13px;color:var(--color-text-primary);font-weight:500;text-align:right}
+    .pipe-track{display:flex;gap:3px;height:5px;margin-top:8px}
+    .pipe-seg{flex:1;border-radius:2px;background:var(--color-border-tertiary)}
+    .pipe-seg.done{background:#1A73E8}
+    .pipe-seg.cur{background:#EA4335}
+    .pipe-lbls{display:flex;gap:3px;margin-top:5px}
+    .pipe-lbl{flex:1;font-size:9px;color:var(--color-text-tertiary);text-align:center}
+    .stat2{display:grid;grid-template-columns:1fr 1fr;gap:8px}
+    .stat2-box{background:var(--color-background-secondary);border-radius:var(--border-radius-md);padding:10px}
+    .stat2-n{font-size:20px;font-weight:500;color:var(--color-text-primary)}
+    .stat2-l{font-size:11px;color:var(--color-text-secondary);margin-top:1px}
+    .dash-page{flex:1;overflow-y:auto;padding:16px}
+    .dash-kpis{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:10px;margin-bottom:14px}
+    .kpi{background:var(--color-background-primary);border:0.5px solid var(--color-border-tertiary);border-radius:var(--border-radius-lg);padding:14px}
+    .kpi-n{font-size:22px;font-weight:500}
+    .kpi-l{font-size:11px;color:var(--color-text-secondary);margin-top:2px}
+    .dash2col{display:grid;grid-template-columns:1fr 1fr;gap:10px}
+    .deals-page{flex:1;overflow-y:auto;padding:16px;display:flex;flex-direction:column;gap:10px}
+    .deal-card{background:var(--color-background-primary);border:0.5px solid var(--color-border-tertiary);border-radius:var(--border-radius-lg);padding:14px;cursor:pointer;transition:border-color .12s}
+    .deal-card:hover{border-color:var(--color-border-secondary)}
+    .deal-top{display:flex;align-items:center;gap:10px;margin-bottom:10px}
+    .deal-name{font-size:13px;font-weight:500;color:var(--color-text-primary)}
+    .deal-prod{font-size:11px;color:var(--color-text-secondary);margin-top:1px}
+    .ai-page{flex:1;overflow-y:auto;padding:16px;display:flex;flex-direction:column;gap:10px}
+    .ai-page .card label{font-size:12px;color:var(--color-text-secondary);display:block;margin-bottom:6px}
+    .ai-page .card textarea,.ai-page .card input[type=text],.ai-page .card input[type=password]{width:100%;padding:9px 11px;border:0.5px solid var(--color-border-secondary);border-radius:8px;font-size:13px;background:var(--color-background-secondary);color:var(--color-text-primary);font-family:var(--font-sans);resize:vertical}
+    .ai-page .card textarea{min-height:80px}
+    .save-btn{margin-top:10px;background:#1A73E8;color:white;border:none;border-radius:7px;padding:7px 16px;font-size:13px;cursor:pointer;display:flex;align-items:center;gap:6px}
+    .save-btn:hover{background:#1557B0}
+    .key-wrap{position:relative;margin-bottom:10px}
+    .key-wrap input{padding-right:36px}
+    .key-eye{position:absolute;right:10px;top:50%;transform:translateY(-50%);cursor:pointer;color:var(--color-text-tertiary);font-size:16px;background:none;border:none}
+    .key-status{display:inline-flex;align-items:center;gap:5px;font-size:11px;padding:3px 9px;border-radius:8px;margin-top:6px}
+    .key-ok{background:#EAF3DE;color:#27500A}
+    .key-no{background:#FCEBEB;color:#791F1F}
+    .key-empty{background:#F1EFE8;color:#5F5E5A}
+    .notif{position:absolute;top:10px;right:10px;background:#27500A;color:white;font-size:12px;padding:7px 14px;border-radius:7px;opacity:0;transition:opacity .3s;pointer-events:none;z-index:10}
+    .notif.show{opacity:1}
+    .model-pick{display:flex;gap:6px;flex-wrap:wrap;margin-top:6px}
+    .model-btn{padding:5px 12px;border-radius:6px;font-size:12px;cursor:pointer;border:0.5px solid var(--color-border-secondary);background:transparent;color:var(--color-text-secondary);transition:all .12s}
+    .model-btn:hover{background:var(--color-background-secondary)}
+    .model-btn.on{background:#E8F0FE;border-color:#1A73E8;color:#1A73E8;font-weight:500}
+    .err-bubble{background:#FCEBEB;border:0.5px solid #F09595;color:#791F1F;border-radius:8px;padding:7px 11px;font-size:12px;margin-top:6px}
+    .sr-only { position: absolute; width: 1px; height: 1px; padding: 0; margin: -1px; overflow: hidden; clip: rect(0,0,0,0); border: 0; }
+    </style>
+</head>
+<body>
+
+<h2 class="sr-only">CRM система с Gemini ИИ-ассистентом</h2>
+
+<div style="position:relative">
+<div class="crm">
+
+  <div class="sidebar">
+    <div class="logo">
+      <div class="logo-mark">
+        <div class="logo-dot"></div>
+        <span class="logo-name">SmartCRM</span>
+      </div>
+      <div class="logo-tag">Groq AI</div>
+    </div>
+    <nav class="nav">
+      <div class="nav-group">Основное</div>
+      <div class="nav-link on" onclick="go('clients')"><i class="ti ti-users" aria-hidden="true"></i>Клиенты<span class="cnt" id="nc">0</span></div>
+      <div class="nav-link" onclick="go('dash')"><i class="ti ti-chart-bar" aria-hidden="true"></i>Дашборд</div>
+      <div class="nav-link" onclick="go('deals')"><i class="ti ti-briefcase" aria-hidden="true"></i>Сделки<span class="cnt" id="nd">0</span></div>
+      <div class="nav-group">Система</div>
+      <div class="nav-link" onclick="go('ai')"><i class="ti ti-robot" aria-hidden="true"></i>ИИ-настройки</div>
+      <div class="nav-link" onclick="go('settings')"><i class="ti ti-settings" aria-hidden="true"></i>Настройки</div>
+    </nav>
+    <div class="user-row">
+      <div class="user-av">МН</div>
+      <div>
+        <div class="user-name">Менеджер</div>
+        <div class="user-role" id="ai-status-dot">Подключено</div>
+      </div>
+    </div>
+  </div>
+
+  <div class="page">
+
+    <div id="p-clients" style="display:flex;flex:1;overflow:hidden">
+      <div class="list-col">
+        <div class="col-head">
+          <span class="col-title">Клиенты</span>
+          <button class="btn-primary" onclick="addClient()"><i class="ti ti-plus" aria-hidden="true"></i>Новый</button>
+        </div>
+        <div class="srch">
+          <div class="srch-wrap">
+            <i class="ti ti-search" aria-hidden="true"></i>
+            <input placeholder="Поиск..." oninput="filterC(this.value)">
+          </div>
+        </div>
+        <div class="clist" id="clist"></div>
+      </div>
+      <div class="detail">
+        <div class="det-empty" id="det-empty">
+          <i class="ti ti-user-search" aria-hidden="true"></i>
+          <span>Выберите клиента</span>
+        </div>
+        <div id="det-body" style="display:none;flex-direction:column;flex:1;overflow:hidden">
+          <div class="det-head">
+            <div class="av" id="dav" style="width:38px;height:38px;font-size:13px"></div>
+            <div class="det-info">
+              <div class="det-name" id="dname"></div>
+              <div class="det-sub" id="dsub"></div>
+            </div>
+            <div class="head-btns">
+              <span class="pill" id="dpill"></span>
+              <button class="btn-ghost" onclick="callC()"><i class="ti ti-phone" aria-hidden="true"></i>Звонок</button>
+              <button class="btn-success" onclick="closeDeal()"><i class="ti ti-check" aria-hidden="true"></i>Закрыть</button>
+            </div>
+          </div>
+          <div class="tabs-bar">
+            <div class="tab on" onclick="stab('chat')"><i class="ti ti-message" style="font-size:13px;margin-right:4px" aria-hidden="true"></i>Чат</div>
+            <div class="tab" onclick="stab('prof')"><i class="ti ti-user" style="font-size:13px;margin-right:4px" aria-hidden="true"></i>Профиль</div>
+            <div class="tab" onclick="stab('hist')"><i class="ti ti-clock" style="font-size:13px;margin-right:4px" aria-hidden="true"></i>История</div>
+          </div>
+          <div class="tcontent" id="tc-chat">
+            <div class="chat-msgs" id="chat-msgs"></div>
+            <div id="mode-bar" style="padding:5px 14px 0;background:var(--color-background-primary);border-top:0.5px solid var(--color-border-tertiary);display:flex;gap:6px">
+              <button id="mode-mgr" onclick="setMode('mgr')" style="padding:4px 10px;border-radius:6px;font-size:11px;cursor:pointer;border:0.5px solid var(--color-border-secondary);background:#185FA5;color:white;display:flex;align-items:center;gap:4px"><i class="ti ti-headset" style="font-size:11px"></i> Менеджер</button>
+              <button id="mode-client" onclick="setMode('client')" style="padding:4px 10px;border-radius:6px;font-size:11px;cursor:pointer;border:0.5px solid var(--color-border-secondary);background:transparent;color:var(--color-text-secondary);display:flex;align-items:center;gap:4px"><i class="ti ti-user" style="font-size:11px"></i> Клиент</button>
+            </div>
+            <div class="chat-bar">
+              <button class="btn-ai" onclick="aiReply()" id="ai-btn" title="Groq ответит за вас">
+                <i class="ti ti-sparkles" aria-hidden="true"></i>
+                <span class="badge-ai">AI</span>
+              </button>
+              <textarea id="cinput" placeholder="Написать клиенту..." onkeydown="kd(event)" oninput="ar(this)"></textarea>
+              <button class="btn-send" id="send-btn" onclick="sendMsg()"><i class="ti ti-send" aria-hidden="true"></i></button>
+            </div>
+          </div>
+          <div class="tcontent hidden" id="tc-prof">
+            <div class="info-scroll" id="prof-body"></div>
+          </div>
+          <div class="tcontent hidden" id="tc-hist">
+            <div class="info-scroll" id="hist-body"></div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <div id="p-dash" class="hidden dash-page">
+      <div class="dash-kpis">
+        <div class="kpi"><div class="kpi-n" style="color:#1A73E8" id="kpi-c">0</div><div class="kpi-l">Клиентов</div></div>
+        <div class="kpi"><div class="kpi-n" style="color:#EA4335" id="kpi-h">0</div><div class="kpi-l">Горячих лидов</div></div>
+        <div class="kpi"><div class="kpi-n" style="color:#34A853" id="kpi-d">0</div><div class="kpi-l">Закрытых сделок</div></div>
+        <div class="kpi"><div class="kpi-n" style="color:#FBBC04" id="kpi-v">—</div><div class="kpi-l">Выручка</div></div>
+      </div>
+      <div class="dash2col">
+        <div class="card">
+          <div class="card-title">Воронка продаж</div>
+          <div id="funnel-container" style="display:flex;flex-direction:column;gap:7px">
+             </div>
+        </div>
+        <div class="card">
+          <div class="card-title">Groq сегодня</div>
+          <div class="stat2">
+            <div class="stat2-box"><div class="stat2-n" style="color:#1A73E8" id="ai-cnt">0</div><div class="stat2-l">ИИ-ответов</div></div>
+            <div class="stat2-box"><div class="stat2-n" style="color:#34A853">100%</div><div class="stat2-l">Точность</div></div>
+            <div class="stat2-box"><div class="stat2-n" style="color:#EA4335">0</div><div class="stat2-l">Ошибок</div></div>
+            <div class="stat2-box"><div class="stat2-n" style="color:#FBBC04" id="avg-time">—</div><div class="stat2-l">Ср. ответ</div></div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <div id="p-deals" class="hidden deals-page"></div>
+
+    <div id="p-ai" class="hidden ai-page">
+      <div class="card">
+        <div class="card-title">Системные настройки ИИ</div>
+        <p style="font-size: 13px; color: var(--color-text-secondary); margin-bottom: 10px;">Все запросы обрабатываются сервером на базе Groq API.</p>
+      </div>
+    </div>
+
+    <div id="p-settings" class="hidden ai-page">
+      <div class="card">
+        <div class="card-title">Профиль компании</div>
+        <label>Название компании</label>
+        <input type="text" value="SmartShop">
+        <button class="save-btn" onclick="showNotif('Сохранено!')"><i class="ti ti-device-floppy" aria-hidden="true"></i>Сохранить</button>
+      </div>
+    </div>
+
+  </div>
+</div>
+<div class="notif" id="notif">Сохранено!</div>
+</div>
+
+<script>
+// ДИНАМИЧЕСКИЙ МАССИВ КЛИЕНТОВ (Грузится из Python)
+let CL = [];
+
+const STAGES = ["Новый", "Контакт", "Переговоры", "Сделка"];
+const PILL = {hot: "pill-hot", new: "pill-new", done: "pill-done", cold: "pill-cold"};
+const PILL_L = {hot: "Горячий", new: "Новый", done: "Закрыто", cold: "Холодный"};
+let sel = null, curTab = "chat";
+
+// КЛЮЧЕВАЯ ФУНКЦИЯ: Загрузка клиентов из Flask-сервера
+async function loadDataFromServer() {
+  try {
+    const res = await fetch('/api/clients');
+    const data = await res.json();
+    
+    if (data) {
+      CL = data;
+      
+      // Обновляем счетчики на UI
+      document.getElementById("nc").textContent = CL.length;
+      document.getElementById("nd").textContent = CL.filter(c => c.status === "done").length;
+      
+      renderList(CL);
+      renderDeals();
+      renderDashboard();
+      
+      if (sel) {
+        // Удерживаем фокус на открытом диалоге
+        const updatedSel = CL.find(c => c.id === sel.id);
+        if (updatedSel) {
+          sel = updatedSel;
+          renderChat();
+        }
+      }
+    }
+  } catch (e) { 
+    console.log("Ожидание данных от сервера...", e); 
+  }
+}
+
+function init(){
+  loadDataFromServer();
+  // Опрос сервера каждые 3 секунды для мгновенного получения сообщений из Telegram
+  setInterval(loadDataFromServer, 3000);
+}
+
+function renderList(list){
+  const container = document.getElementById("clist");
+  if (!list || list.length === 0) {
+    container.innerHTML = '<div style="padding:15px; font-size:12px; color:gray; text-align:center;">Нет активных клиентов</div>';
+    return;
+  }
+  
+  container.innerHTML = list.map(c => {
+    const lastMsg = c.msgs && c.msgs.length > 0 ? c.msgs[c.msgs.length - 1].t : "Нет сообщений";
+    const preview = lastMsg.length > 34 ? lastMsg.substring(0, 34) + "…" : lastMsg;
+    return `
+    <div class="ci${sel && sel.id === c.id ? ' on' : ''}" onclick="pick(${c.id})">
+      <div class="av" style="background:${c.bg};color:${c.tc}">${c.ini}</div>
+      <div class="ci-body">
+        <div class="ci-name">${c.name}</div>
+        <div class="ci-preview">${preview}</div>
+      </div>
+      <div class="ci-meta"><span class="pill ${PILL[c.status]}">${PILL_L[c.status]}</span></div>
+    </div>`;
+  }).join("");
+}
+
+function filterC(q){
+  renderList(CL.filter(c => c.name.toLowerCase().includes(q.toLowerCase())));
+}
+
+function pick(id){
+  sel = CL.find(c => c.id === id);
+  document.getElementById("det-empty").style.display = "none";
+  const db = document.getElementById("det-body"); db.style.display = "flex";
+  const av = document.getElementById("dav"); av.style.background = sel.bg; av.style.color = sel.tc; av.textContent = sel.ini;
+  document.getElementById("dname").textContent = sel.name;
+  document.getElementById("dsub").textContent = sel.email + " · " + sel.phone;
+  const p = document.getElementById("dpill"); p.textContent = PILL_L[sel.status]; p.className = "pill " + PILL[sel.status];
+  renderList(CL); stab("chat");
+}
+
+function stab(t){
+  curTab = t;
+  document.querySelectorAll(".tab").forEach((el, i) => el.classList.toggle("on", ["chat", "prof", "hist"][i] === t));
+  ["chat", "prof", "hist"].forEach(id => { const el = document.getElementById("tc-" + id); if (el) el.classList.toggle("hidden", id !== t); });
+  if (t === "chat") renderChat();
+  if (t === "prof") renderProf();
+  if (t === "hist") renderHist();
+}
+
+function renderChat(){
+  if (!sel) return;
+  document.getElementById("chat-msgs").innerHTML = sel.msgs.map(m => {
+    if (m.r === "client") return `<div class="msg-row them"><div class="msg-av" style="background:${sel.bg};color:${sel.tc}">${sel.ini}</div><div><div class="bubble">${m.t}</div><div class="msg-time">${sel.name.split(" ")[0]} · ${m.ts}</div></div></div>`;
+    if (m.r === "ai") return `<div class="msg-row me ai-msg"><div class="msg-av" style="background:#1A73E8;color:white;font-size:9px">AI</div><div><div class="bubble">${m.t}</div><div class="msg-time">Groq · ${m.ts}</div></div></div>`;
+    return `<div class="msg-row me mgr-msg"><div class="msg-av" style="background:#185FA5;color:white;font-size:10px">МН</div><div><div class="bubble">${m.t}</div><div class="msg-time">Вы · ${m.ts}</div></div></div>`;
+  }).join("");
+  const a = document.getElementById("chat-msgs"); a.scrollTop = a.scrollHeight;
+}
+
+function renderProf(){
+  if (!sel) return;
+  document.getElementById("prof-body").innerHTML = `
+    <div class="card"><div class="card-title">Контакт</div>
+      <div class="field-row"><span class="fl"><i class="ti ti-mail" style="font-size:13px;margin-right:4px"></i>ID Чата</span><span class="fv" style="color:#1A73E8">${sel.id}</span></div>
+      <div class="field-row"><span class="fl"><i class="ti ti-phone" style="font-size:13px;margin-right:4px"></i>Телефон</span><span class="fv">${sel.phone}</span></div>
+      <div class="field-row"><span class="fl">Источник</span><span class="fv">${sel.src}</span></div>
+    </div>
+    <div class="card"><div class="card-title">Интерес</div>
+      <div class="field-row"><span class="fl">Товар</span><span class="fv">${sel.prod}</span></div>
+      <div class="field-row"><span class="fl">Бюджет</span><span class="fv">${sel.budget}</span></div>
+    </div>`;
+}
+
+function renderHist(){
+  if (!sel) return;
+  document.getElementById("hist-body").innerHTML = `<div class="card"><div class="card-title">Журнал активности</div>
+    <div style="display:flex;flex-direction:column;gap:10px;margin-top:4px">
+      <div style="display:flex;gap:10px;align-items:flex-start"><div style="width:6px;height:6px;border-radius:50%;background:#1A73E8;margin-top:5px;flex-shrink:0"></div><div><div style="font-size:13px;color:var(--color-text-primary)">Диалог активен</div><div style="font-size:11px;color:var(--color-text-secondary)">Клиент пишет через Telegram</div></div></div>
+    </div></div>`;
+}
+
+function renderDeals(){
+  const container = document.getElementById("p-deals");
+  container.innerHTML = `<div style="font-size:14px;font-weight:500;color:var(--color-text-primary);margin-bottom:12px">Активные сделки</div>` +
+  CL.map(c => `<div class="deal-card" onclick="goToClient(${c.id})">
+    <div class="deal-top">
+      <div class="av" style="background:${c.bg};color:${c.tc};width:34px;height:34px;font-size:12px">${c.ini}</div>
+      <div style="flex:1"><div class="deal-name">${c.name}</div><div class="deal-prod">${c.prod} — ${c.budget}</div></div>
+      <span class="pill ${PILL[c.status]}">${PILL_L[c.status]}</span>
+    </div>
+  </div>`).join("");
+}
+
+function renderDashboard() {
+  document.getElementById("kpi-c").textContent = CL.length;
+  document.getElementById("kpi-h").textContent = CL.filter(c => c.status === "hot" || c.status === "new").length;
+  document.getElementById("kpi-d").textContent = CL.filter(c => c.status === "done").length;
+  
+  const container = document.getElementById("funnel-container");
+  container.innerHTML = `
+    <div style="display:flex;align-items:center;gap:8px"><span style="font-size:12px;color:var(--color-text-secondary);width:76px">Входящие</span><div style="flex:1;height:20px;background:#E8F0FE;border-radius:4px;display:flex;align-items:center;padding:0 8px;font-size:11px;font-weight:500;color:#1557B0">${CL.length} клинт(ов)</div></div>
+  `;
+}
+
+function goToClient(id){ go("clients"); setTimeout(() => pick(id), 50) }
+
+function go(view){
+  const views = ["clients", "dash", "deals", "ai", "settings"];
+  const links = document.querySelectorAll(".nav-link");
+  views.forEach((v, i) => {
+    const el = document.getElementById("p-" + v);
+    if (el) {
+      if (v === "clients") { el.style.display = v === view ? "flex" : "none"; }
+      else { el.classList.toggle("hidden", v !== view); }
+    }
+    if (links[i]) links[i].classList.toggle("on", v === view);
+  });
+}
+
+function kd(e){ if (e.key === "Enter" && !e.shiftKey) { e.preventDefault(); sendMsg(); } }
+function ar(el){ el.style.height = "auto"; el.style.height = Math.min(el.scrollHeight, 90) + "px" }
+
+let currentMode = "mgr";
+function setMode(mode){
+  currentMode = mode;
+  const inp = document.getElementById("cinput");
+  const mgrBtn = document.getElementById("mode-mgr");
+  const clientBtn = document.getElementById("mode-client");
+  if (mode === "mgr") {
+    inp.placeholder = "Написать клиенту...";
+    mgrBtn.style.background = "#185FA5"; mgrBtn.style.color = "white";
+    clientBtn.style.background = "transparent"; clientBtn.style.color = "var(--color-text-secondary)";
+  } else {
+    inp.placeholder = "Имитировать сообщение от клиента...";
+    clientBtn.style.background = "#639922"; clientBtn.style.color = "white";
+    mgrBtn.style.background = "transparent"; mgrBtn.style.color = "var(--color-text-secondary)";
+  }
+  inp.focus();
+}
+
+// КЛЮЧЕВАЯ ФУНКЦИЯ: Отправка ответа менеджеру напрямую в Telegram
+async function sendMsg(){
+  const inp = document.getElementById("cinput"); 
+  const txt = inp.value.trim();
+  if(!txt || !sel) return;
+
+  // Если включен тестовый режим клиента — шлем локально
+  if(currentMode === "client") {
+     showNotif("Локальный тест");
+     return;
+  }
+
+  // Настоящая отправка ответа в Telegram через Flask API
+  try {
+    const res = await fetch('/api/send', {
+      method: 'POST',
+      headers: {'Content-Type': 'application/json'},
+      body: JSON.stringify({ chat_id: sel.id, text: txt, sender: 'mgr' })
+    });
+    const resData = await res.json();
+    if(resData.status === "success") {
+      inp.value = ""; inp.style.height = "auto";
+      loadDataFromServer(); // Сразу обновляем чат на экране
+    } else { 
+      alert("Ошибка отправки сообщения: " + resData.message); 
+    }
+  } catch(e) { 
+    alert("Сервер Flask CRM недоступен."); 
+  }
+}
+
+function aiReply(){
+  showNotif("Запрос ИИ обрабатывается сервером...");
+}
+
+function callC(){ if (sel) alert("Инициализация звонка на TG ID: " + sel.id) }
+function closeDeal(){ showNotif("Сделка закрыта!"); }
+function addClient(){ prompt("Имя клиента для ручного добавления:"); }
+function showNotif(msg){ const n = document.getElementById("notif"); n.textContent = msg; n.classList.add("show"); setTimeout(() => n.classList.remove("show"), 2200); }
+
+init();
+</script>
+</body>
+</html>
