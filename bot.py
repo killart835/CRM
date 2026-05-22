@@ -271,8 +271,16 @@ async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
     session = get_session(chat_id, client_name)
     ts = datetime.now().strftime("%H:%M")
     
-    groq_history = [{"role": "user", "content": m["t"]} for m in session["msgs"] if m["r"] == "client"]
-    groq_history.append({"role": "user", "content": text})
+groq_history = []
+for m in session["msgs"]:
+    if m["r"] == "client":
+        groq_history.append({"role": "user", "content": m["t"]})
+    elif m["r"] in ["ai", "mgr"]:
+        # Передаем ответы ИИ и менеджера как ответы ассистента
+        groq_history.append({"role": "assistant", "content": m["t"]})
+
+# Добавляем самое последнее сообщение, которое клиент прислал прямо сейчас
+groq_history.append({"role": "user", "content": text})
     
     # Сохраняем в память и БД
     session["msgs"].append({"r": "client", "t": text, "ts": ts})
