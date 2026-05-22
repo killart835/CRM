@@ -271,16 +271,55 @@ async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
     session = get_session(chat_id, client_name)
     ts = datetime.now().strftime("%H:%M")
     
-groq_history = []
-for m in session["msgs"]:
-    if m["r"] == "client":
-        groq_history.append({"role": "user", "content": m["t"]})
-    elif m["r"] in ["ai", "mgr"]:
-        # Передаем ответы ИИ и менеджера как ответы ассистента
-        groq_history.append({"role": "assistant", "content": m["t"]})
+# ── Входящие сообщения от клиентов в Telegram ────────────────────────────────
+async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    chat_id = update.effective_chat.id
+    text = update.message.text
+    user = update.effective_user
+    client_name = user.full_name or f"Клиент {chat_id}"
 
-# Добавляем самое последнее сообщение, которое клиент прислал прямо сейчас
-groq_history.append({"role": "user", "content": text})
+    if chat_id == MANAGER_CHAT_ID:
+        await handle_manager_message(update, context, text)
+        return
+
+    session = get_session(chat_id, client_name)
+    ts = datetime.now().strftime("%H:%M")
+    
+    # 1. Сначала формируем историю для Groq (из того, что уже БЫЛО в базе)
+    groq_history = []
+    for m in session["msgs"]:
+        if m["r"] == "client":
+            groq_history.append({"role": "user", "content": m["t"]})
+        elif m["r"] in ["ai", "mgr"]:
+            groq_history.append({"role": "assistant", "content": m["t"]})
+            
+    # 2. Добавляем в историю для Groq текущий (новый) вопрос клиента
+    groq_history.append({"role": "user", "content": text})
+    
+    # 3. И только ПОСЛЕ этого сохраняем новое сообщение в память и БД проекта
+    session["msgs"].append({"r": "client", "t": text, "ts": ts})
+    save_message_to_db(chat_id, "client", text, ts)
+
+    await forward_to_manager(context, chat_id, client_name, text)
+
+    if session["mode"] == "auto":
+        await context.bot.send_chat_action(chat_id=chat_id, action="typing")
+        reply = await ask_groq(groq_history)
+        
+        # Сохраняем ответ ИИ в память и БД
+        session["msgs"].append({"r": "ai", "t": reply, "ts": ts})
+        save_message_to_db(chat_id, "ai", reply, ts)
+        
+        await update.message.reply_text(reply)
+
+        if MANAGER_CHAT_ID:
+            await context.bot.send_message(
+                chat_id=MANAGER_CHAT_ID,
+                text=f"🤖 *Авто-ответ* для {client_name}:\n{reply}",
+                parse_mode="Markdown"
+            )
+    else:
+        await update.message.reply_text("⏳ Менеджер скоро ответит вам!")
     
     # Сохраняем в память и БД
     session["msgs"].append({"r": "client", "t": text, "ts": ts})
