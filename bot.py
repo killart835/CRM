@@ -270,7 +270,7 @@ def send_from_crm():
 
 
 def run_telegram():
-    """Запуск Telegram бота в отдельном потоке"""
+    """Запуск Telegram бота в отдельном потоке с собственным циклом событий"""
     global tg_application, loop
     loop = asyncio.new_event_loop()
     asyncio.set_event_loop(loop)
@@ -282,8 +282,15 @@ def run_telegram():
     tg_application.add_handler(CallbackQueryHandler(handle_callback))
     tg_application.add_handler(MessageHandler(filters.TEXT & ~filters.COMMAND, handle_message))
     
-    logger.info("Бот Telegram успешно инициализирован в фоне!")
-    tg_application.run_polling(drop_pending_updates=True, close_loop=False)
+    logger.info("Инициализация Telegram бота...")
+    
+    # Правильный асинхронный запуск без блокировки потока
+    loop.run_until_complete(tg_application.initialize())
+    loop.run_until_complete(tg_application.start())
+    loop.run_until_complete(tg_application.updater.start_polling(drop_pending_updates=True))
+    
+    # Запускаем бесконечный цикл обработки событий бота
+    loop.run_forever()
 
 if __name__ == "__main__":
     # 1. Запускаем Телеграм-бота в отдельном фоновом потоке
