@@ -22,7 +22,7 @@ TELEGRAM_TOKEN = os.getenv("TELEGRAM_TOKEN")
 GROQ_API_KEY   = os.getenv("GROQ_API_KEY")
 MANAGER_CHAT_ID = int(os.getenv("MANAGER_CHAT_ID", "0"))  # ваш Telegram ID
 GROQ_MODEL     = os.getenv("GROQ_MODEL", "llama-3.3-70b-versatile")
-DB_FILE        = "crm.db"
+DB_FILE = "/app/data/crm.db"
 
 SYSTEM_PROMPT = os.getenv("SYSTEM_PROMPT", (
     "Ты — экспертный и профессиональный менеджер по продажам магазина SmartShop. "
