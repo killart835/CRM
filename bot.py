@@ -2,7 +2,10 @@ import os
 import httpx
 import logging
 import asyncio
+import sqlite3
+import json
 from threading import Thread
+from datetime import datetime
 from flask import Flask, jsonify, request, render_template
 from telegram import Update, InlineKeyboardButton, InlineKeyboardMarkup
 from telegram.ext import (
@@ -19,6 +22,7 @@ TELEGRAM_TOKEN = os.getenv("TELEGRAM_TOKEN")
 GROQ_API_KEY   = os.getenv("GROQ_API_KEY")
 MANAGER_CHAT_ID = int(os.getenv("MANAGER_CHAT_ID", "0"))  # ваш Telegram ID
 GROQ_MODEL     = os.getenv("GROQ_MODEL", "llama-3.3-70b-versatile")
+DB_FILE        = "crm.db"
 
 SYSTEM_PROMPT = os.getenv("SYSTEM_PROMPT", (
     "Ты — экспертный и профессиональный менеджер по продажам магазина SmartShop. "
@@ -43,19 +47,125 @@ SYSTEM_PROMPT = os.getenv("SYSTEM_PROMPT", (
     "Apple Watch Ultra 2 — 25 000 ₴"
 ))
 
-# ── Хранилище диалогов (в памяти) ────────────────────────────────────────────
-sessions = {}
-tg_application = None  # Ссылка на инстанс инстанса Telegram-приложения
-loop = None            # Асинхронный цикл для передачи задач из Flask в Telegram
+tg_application = None  
+loop = None            
+
+# ── РАБОТА С БАЗОЙ ДАННЫХ SQLLITE ─────────────────────────────────────────────
+def init_db():
+    """Создает таблицы в базе данных, если они еще не созданы"""
+    conn = sqlite3.connect(DB_FILE)
+    cursor = conn.cursor()
+    # Таблица клиентов
+    cursor.execute("""
+        CREATE TABLE IF NOT EXISTS clients (
+            id INTEGER PRIMARY KEY,
+            name TEXT,
+            ini TEXT,
+            phone TEXT,
+            email TEXT,
+            bg TEXT,
+            tc TEXT,
+            status TEXT,
+            src TEXT,
+            prod TEXT,
+            budget TEXT,
+            mode TEXT
+        )
+    """)
+    # Таблица сообщений
+    cursor.execute("""
+        CREATE TABLE IF NOT EXISTS messages (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            chat_id INTEGER,
+            role TEXT,
+            text TEXT,
+            timestamp TEXT
+        )
+    """)
+    conn.commit()
+    conn.close()
+
+def load_sessions_from_db():
+    """Загружает всех клиентов и их историю из БД в оперативную память при старте"""
+    sessions_data = {}
+    try:
+        conn = sqlite3.connect(DB_FILE)
+        conn.row_factory = sqlite3.Row
+        cursor = conn.cursor()
+        
+        # Получаем клиентов
+        cursor.execute("SELECT * FROM clients")
+        rows = cursor.fetchall()
+        for row in rows:
+            chat_id = row["id"]
+            sessions_data[chat_id] = {
+                "id": chat_id,
+                "name": row["name"],
+                "ini": row["ini"],
+                "phone": row["phone"],
+                "email": row["email"],
+                "bg": row["bg"],
+                "tc": row["tc"],
+                "status": row["status"],
+                "src": row["src"],
+                "prod": row["prod"],
+                "budget": row["budget"],
+                "mode": row["mode"],
+                "msgs": []
+            }
+            
+        # Получаем сообщения для каждого клиента
+        cursor.execute("SELECT * FROM messages ORDER BY id ASC")
+        msg_rows = cursor.fetchall()
+        for msg in msg_rows:
+            c_id = msg["chat_id"]
+            if c_id in sessions_data:
+                sessions_data[c_id]["msgs"].append({
+                    "r": msg["role"],
+                    "t": msg["text"],
+                    "ts": msg["timestamp"]
+                })
+        conn.close()
+        logger.info(f"Успешно загружено клиентов из базы данных: {len(sessions_data)}")
+    except Exception as e:
+        logger.error(f"Ошибка загрузки базы данных: {str(e)}")
+    return sessions_data
+
+def save_client_to_db(client):
+    """Сохраняет или обновляет карточку клиента в БД"""
+    conn = sqlite3.connect(DB_FILE)
+    cursor = conn.cursor()
+    cursor.execute("""
+        INSERT INTO clients (id, name, ini, phone, email, bg, tc, status, src, prod, budget, mode)
+        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+        ON CONFLICT(id) DO UPDATE SET
+            name=excluded.name, status=excluded.status, mode=excluded.mode,
+            prod=excluded.prod, budget=excluded.budget, phone=excluded.phone, email=excluded.email
+    """, (client["id"], client["name"], client["ini"], client["phone"], client["email"], 
+          client["bg"], client["tc"], client["status"], client["src"], client["prod"], client["budget"], client["mode"]))
+    conn.commit()
+    conn.close()
+
+def save_message_to_db(chat_id, role, text, timestamp):
+    """Сохраняет новое сообщение в БД"""
+    conn = sqlite3.connect(DB_FILE)
+    cursor = conn.cursor()
+    cursor.execute("""
+        INSERT INTO messages (chat_id, role, text, timestamp)
+        VALUES (?, ?, ?, ?)
+    """, (chat_id, role, text, timestamp))
+    conn.commit()
+    conn.close()
+
+# Инициализируем БД и загружаем сессии в память
+init_db()
+sessions = load_sessions_from_db()
 
 def get_session(chat_id, client_name="Клиент"):
     if chat_id not in sessions:
-        # Генерируем случайный красивый цвет аватара для CRM панели
         bgs = ["#E8F0FE", "#FCE8E6", "#E6F4EA", "#FEF9E7"]
         tcs = ["#1557B0", "#C5221F", "#1E7E34", "#856404"]
         i = len(sessions) % 4
-        
-        # Инициалы для CRM
         ini = "".join([w[0].upper() for w in client_name.split() if w])[:2] or "КЛ"
         
         sessions[chat_id] = {
@@ -73,6 +183,7 @@ def get_session(chat_id, client_name="Клиент"):
             "mode": "auto",
             "msgs": []
         }
+        save_client_to_db(sessions[chat_id])
     return sessions[chat_id]
 
 # ── Groq API ─────────────────────────────────────────────────────────────────
@@ -112,7 +223,15 @@ async def cmd_start(update: Update, context: ContextTypes.DEFAULT_TYPE):
     user = update.effective_user
     client_name = user.full_name or f"Клиент {update.effective_chat.id}"
     session = get_session(update.effective_chat.id, client_name)
-    session["msgs"] = [] # сброс истории при /start
+    
+    # Очистка сообщений в БД при перезапуске диалога через /start
+    conn = sqlite3.connect(DB_FILE)
+    cursor = conn.cursor()
+    cursor.execute("DELETE FROM messages WHERE chat_id = ?", (update.effective_chat.id,))
+    conn.commit()
+    conn.close()
+    
+    session["msgs"] = []
     await update.message.reply_text(
         "👋 Привет! Я менеджер SmartShop.\n"
         "Чем могу помочь? Спрашивайте о наших товарах!"
@@ -150,23 +269,25 @@ async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
         return
 
     session = get_session(chat_id, client_name)
-    
-    # Сохраняем время
-    from datetime import datetime
     ts = datetime.now().strftime("%H:%M")
     
-    # Добавляем в историю для Groq и отображения в CRM панели
     groq_history = [{"role": "user", "content": m["t"]} for m in session["msgs"] if m["r"] == "client"]
     groq_history.append({"role": "user", "content": text})
     
+    # Сохраняем в память и БД
     session["msgs"].append({"r": "client", "t": text, "ts": ts})
+    save_message_to_db(chat_id, "client", text, ts)
 
     await forward_to_manager(context, chat_id, client_name, text)
 
     if session["mode"] == "auto":
         await context.bot.send_chat_action(chat_id=chat_id, action="typing")
         reply = await ask_groq(groq_history)
+        
+        # Сохраняем ответ ИИ в память и БД
         session["msgs"].append({"r": "ai", "t": reply, "ts": ts})
+        save_message_to_db(chat_id, "ai", reply, ts)
+        
         await update.message.reply_text(reply)
 
         if MANAGER_CHAT_ID:
@@ -189,11 +310,13 @@ async def handle_manager_message(update, context, text):
         await update.message.reply_text("⚠️ Не удалось определить клиента.")
         return
 
-    from datetime import datetime
     ts = datetime.now().strftime("%H:%M")
-
     session = get_session(client_id)
+    
+    # Сохраняем ответ менеджера в память и БД
     session["msgs"].append({"r": "mgr", "t": text, "ts": ts})
+    save_message_to_db(client_id, "mgr", text, ts)
+    
     await context.bot.send_message(chat_id=client_id, text=text)
     await update.message.reply_text(f"✅ Отправлено клиенту {client_id}")
 
@@ -217,9 +340,9 @@ async def handle_callback(update: Update, context: ContextTypes.DEFAULT_TYPE):
         groq_history = [{"role": "user", "content": m["t"]} for m in session["msgs"] if m["r"] == "client"]
         reply = await ask_groq(groq_history)
         
-        from datetime import datetime
         ts = datetime.now().strftime("%H:%M")
         session["msgs"].append({"r": "ai", "t": reply, "ts": ts})
+        save_message_to_db(client_id, "ai", reply, ts)
         
         await context.bot.send_message(chat_id=client_id, text=reply)
         await query.message.reply_text(f"🤖 Groq ответил клиенту {client_id}:\n\n{reply}")
@@ -237,17 +360,14 @@ app = Flask(__name__)
 
 @app.route('/')
 def index():
-    # Отдает страницу HTML интерфейса из templates/index.html
     return render_template('index.html')
 
 @app.route('/api/clients', methods=['GET'])
 def get_clients():
-    # Возвращает массив клиентов и их сообщения на сайт-панель
     return jsonify(list(sessions.values()))
 
 @app.route('/api/send', methods=['POST'])
 def send_from_crm():
-    # Получает сообщение из веб-админки и пересылает его в реальный Telegram
     global tg_application, loop
     data = request.json or {}
     chat_id = int(data.get("chat_id", 0))
@@ -260,11 +380,12 @@ def send_from_crm():
     if not session:
         return jsonify({"status": "error", "message": "Client session not found"}), 404
         
-    from datetime import datetime
     ts = datetime.now().strftime("%H:%M")
-    session["msgs"].append({"r": "mgr", "t": text, "ts": ts})
     
-    # Асинхронно отправляем сообщение пользователю в Telegram через запущенный инстанс бота
+    # Сохраняем сообщение из CRM в память и БД
+    session["msgs"].append({"r": "mgr", "t": text, "ts": ts})
+    save_message_to_db(chat_id, "mgr", text, ts)
+    
     if tg_application and loop:
         asyncio.run_coroutine_threadsafe(
             tg_application.bot.send_message(chat_id=chat_id, text=text), 
@@ -276,7 +397,7 @@ def send_from_crm():
 
 
 def run_telegram():
-    """Запуск Telegram бота в отдельном потоке с собственным циклом событий"""
+    """Запуск Telegram бота в отдельном потоке"""
     global tg_application, loop
     loop = asyncio.new_event_loop()
     asyncio.set_event_loop(loop)
@@ -289,21 +410,15 @@ def run_telegram():
     tg_application.add_handler(MessageHandler(filters.TEXT & ~filters.COMMAND, handle_message))
     
     logger.info("Инициализация Telegram бота...")
-    
-    # Правильный асинхронный запуск без блокировки потока
     loop.run_until_complete(tg_application.initialize())
     loop.run_until_complete(tg_application.start())
     loop.run_until_complete(tg_application.updater.start_polling(drop_pending_updates=True))
-    
-    # Запускаем бесконечный цикл обработки событий бота
     loop.run_forever()
 
 if __name__ == "__main__":
-    # 1. Запускаем Телеграм-бота в отдельном фоновом потоке
     t = Thread(target=run_telegram, daemon=True)
     t.start()
     
-    # 2. Запускаем веб-сервер Flask
     port = int(os.getenv("PORT", 5000))
     logger.info(f"Запуск Flask CRM на порту {port}...")
     try:
